@@ -40,7 +40,7 @@ if debug_mode:
 
 # --- ページ設定 ---
 st.set_page_config(
-    page_title="メンターAI",
+    page_title="能力開発メンターAI",
     page_icon="🌱",
     layout="centered"
 )
@@ -65,7 +65,7 @@ if "is_started" not in st.session_state:
     st.session_state.is_started = False
 
 # --- メイン画面 ---
-st.title("🌱 メンター型アセスメント")
+st.title("🌱 メンター型アセスメント（能力開発支援）")
 st.markdown("あなたの強みと補完すべき能力を診断します。対話するように回答してください。")
 
 # --- Secrets/Configの読み込み ---
