@@ -50,7 +50,9 @@ with st.sidebar:
     st.header("設定")
     if "user_name" not in st.session_state:
         st.session_state.user_name = generate_random_id()
-    st.text_input("お名前（ニックネーム可）", key="user_name")
+    # Bind text_input directly to session_state using key="user_name"
+    # value argument is removed to avoid conflict/reset issues
+    st.text_input("お名前（ニックネーム可）", key="user_name", disabled=st.session_state.is_started)
 
 # --- セッション状態の初期化 ---
 if "messages" not in st.session_state:
@@ -139,7 +141,9 @@ if st.session_state.is_started:
     for msg in st.session_state.messages:
         avatar = "🌱" if msg["role"] == "assistant" else None
         with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+            # 終了タグを非表示にする
+            display_content = msg["content"].replace("[[END_OF_ASSESSMENT]]", "")
+            st.markdown(display_content)
 
     # ユーザー入力エリア
     if prompt := st.chat_input("回答を入力してください..."):
@@ -178,8 +182,10 @@ if st.session_state.is_started:
                     full_text = ""
                     for chunk in response:
                         full_text += chunk.text
-                        response_placeholder.markdown(full_text + "▌")
-                    response_placeholder.markdown(full_text)
+                        response_placeholder.markdown(full_text.replace("[[END_OF_ASSESSMENT]]", "") + "▌")
+                    
+                    clean_text = full_text.replace("[[END_OF_ASSESSMENT]]", "")
+                    response_placeholder.markdown(clean_text)
                     
                     # Gemini履歴の更新 (辞書形式)
                     st.session_state.gemini_history.append({"role": "user", "parts": [{"text": prompt}]})
@@ -191,3 +197,30 @@ if st.session_state.is_started:
         except Exception as e:
             logger.error(f"AIの応答生成中にエラーが発生しました (User: {st.session_state.user_name}): {e}", exc_info=True)
             st.error("AIの応答生成中にエラーが発生しました。もう一度お試しください。")
+
+    # --- アセスメント終了判定とログダウンロード ---
+    if st.session_state.messages:
+        last_msg = st.session_state.messages[-1]
+        if last_msg["role"] == "assistant" and "[[END_OF_ASSESSMENT]]" in last_msg["content"]:
+            st.success("アセスメントが終了しました。お疲れ様でした！")
+            st.markdown("以下のボタンから、ここまでの対話ログをダウンロードできます。")
+            
+            # CSV生成
+            import csv
+            import io
+            
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer)
+            writer.writerow(["Role", "Content"]) # Header
+            
+            for msg in st.session_state.messages:
+                writer.writerow([msg["role"], msg["content"]])
+            
+            csv_data = csv_buffer.getvalue().encode("utf-8")
+            
+            st.download_button(
+                label="対話ログをダウンロード (CSV)",
+                data=csv_data,
+                file_name=f"assessment_log_{st.session_state.user_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
