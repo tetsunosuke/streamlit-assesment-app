@@ -1,6 +1,16 @@
 import logging
 import os
+import sys
 from logging.handlers import RotatingFileHandler
+
+# Windows環境でのコンソール出力の文字化け/エラー対策
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python 3.7未満など reconfigure がない場合はスキップ（今回は3.12+なので問題なし）
+        pass
 
 # ログを保存するディレクトリを作成
 LOG_DIR = 'logs'
@@ -17,9 +27,9 @@ def setup_logger(name: str, log_file: str, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
-    # すでにハンドラが設定されていれば、重複して追加しない
+    # Streamlitの再実行時にハンドラが重複して追加されるのを防ぐため、既存のハンドラをクリアする
     if logger.hasHandlers():
-        return logger
+        logger.handlers.clear()
 
     # ログのフォーマットを定義
     formatter = logging.Formatter(
