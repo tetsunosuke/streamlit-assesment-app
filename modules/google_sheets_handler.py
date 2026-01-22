@@ -15,7 +15,7 @@ MIN_LOG_LEVEL = logging.INFO
 # Key in st.secrets where the JSON credentials are stored
 CREDENTIALS_KEY_IN_SECRETS = 'google_sheets'
 # Key in st.session_state to retrieve the user ID
-USER_ID_KEY_IN_SESSION_STATE = 'user_id' 
+USER_ID_KEY_IN_SESSION_STATE = 'user_name' 
 
 # --- Google Sheets Handler ---
 class GoogleSheetsHandler(logging.Handler):
