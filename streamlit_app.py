@@ -10,8 +10,6 @@ load_dotenv()
 from modules.gemini_client import GeminiClient
 from modules.logger import logger
 from modules.google_sheets_handler import add_google_sheets_handler
-import random
-import string
 
 # --- Google Sheets Loggerのセットアップ ---
 add_google_sheets_handler(
@@ -21,11 +19,6 @@ add_google_sheets_handler(
     credentials_key='google_sheets',
     min_level=logging.INFO
 )
-
-# Helper function to generate a random alphanumeric ID
-def generate_random_id(length=8):
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for i in range(length))
 
 # デバッグモードの読み込み
 # st.secrets を優先し、なければ環境変数を参照、デフォルトは 'False'
@@ -40,7 +33,7 @@ if debug_mode:
 
 # --- ページ設定 ---
 st.set_page_config(
-    page_title="能力開発メンターAI",
+    page_title="メンターAI",
     page_icon="🌱",
     layout="centered"
 )
@@ -49,9 +42,7 @@ st.set_page_config(
 with st.sidebar:
     st.header("設定")
     if "user_name" not in st.session_state:
-        st.session_state.user_name = generate_random_id()
-    # Bind text_input directly to session_state using key="user_name"
-    # value argument is removed to avoid conflict/reset issues
+        st.session_state.user_name = ""
     st.text_input("お名前（ニックネーム可）", key="user_name", disabled=st.session_state.is_started)
 
 # --- セッション状態の初期化 ---
@@ -65,7 +56,7 @@ if "is_started" not in st.session_state:
     st.session_state.is_started = False
 
 # --- メイン画面 ---
-st.title("🌱 メンター型アセスメント（能力開発支援）")
+st.title("🌱 メンター型アセスメント")
 st.markdown("あなたの強みと補完すべき能力を診断します。対話するように回答してください。")
 
 # --- Secrets/Configの読み込み ---
@@ -97,10 +88,13 @@ else:
 
 # --- 開始ボタンの表示 ---
 if not st.session_state.is_started:
-    st.info("左側のサイドバーで名前を確認・変更し、「アセスメントを開始する」ボタンを押してください。")
+    st.info("左側のサイドバーで名前を入力し、「アセスメントを開始する」ボタンを押してください。")
     if st.button("アセスメントを開始する", type="primary"):
-        st.session_state.is_started = True
-        st.rerun()
+        if not st.session_state.user_name.strip():
+            st.warning("お名前を入力してください。")
+        else:
+            st.session_state.is_started = True
+            st.rerun()
 
 # --- チャットロジック (開始後のみ実行) ---
 if st.session_state.is_started:

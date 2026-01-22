@@ -1,15 +1,15 @@
-# Project Context: Mid-level Employee Assessment AI App
+# プロジェクト概要: 中堅社員向けアセスメントAIアプリ
 
 ## 1. プロジェクト概要
 企業の「中堅社員（チームの中核人材）」を対象とした、メンター型アセスメントAIアプリケーションを開発する。
 ユーザーはWebブラウザ上でAIメンターと対話し、3つの業務シミュレーション（Module）をクリアすることで、自身の強み・弱み・推奨される学習テーマのフィードバックを受け取る。
 
 ## 2. 技術スタック
-- **Language**: Python 3.12+
-- **Framework**: Streamlit (Web UI)
+- **言語**: Python 3.12+
+- **フレームワーク**: Streamlit (Web UI)
 - **AI API**: Google Gemini API (`google-genai` SDK)
-- **Environment**: `.env` file for local development, **Streamlit Secrets** for deployment (`python-dotenv` for local loading)
-- **Logging**: Python標準 `logging` モジュール
+- **環境設定**: ローカル開発用の `.env` ファイル, デプロイ用の **Streamlit Secrets** (`python-dotenv` でローカル読み込み)
+- **ロギング**: Python標準 `logging` モジュール
 
 ## 3. ディレクトリ構成
 ```text
@@ -40,9 +40,10 @@
 - **終了判定**: AIからの応答に `[[END_OF_ASSESSMENT]]` という文字列が含まれていた場合、アセスメント終了とみなす。
     - UI上に「診断終了」のメッセージを目立つように表示する。
     - 入力欄を無効化（`disabled=True`）するか、非表示にする。
+    - 対話ログのダウンロードボタン（CSV）を表示する。
 - **設定読み込み**: ローカル実行時は`.env`ファイル、Streamlit Community Cloudへのデプロイ時は`st.secrets`から`GOOGLE_API_KEY`と`GEMINI_MODEL`を読み込む。
 - **デバッグモード**: `DEBUG_MODE` が `True` の場合、APIを呼び出さずにモック応答を使用する。設定がない場合は `False` (本番モード) となる。
-- **ロギング**: `modules/logger.py`で設定された`logger`を使用し、ユーザーの入力、AIの応答、およびアプリケーション内で発生したエラーをログに記録する。
+- **ロギング**: `modules/logger.py`で設定された`logger`を使用し、ユーザーの入力、AIの応答、およびアプリケーション内で発生したエラーをログに記録する。ユーザー名も記録する。
 
 ### 4.2 Gemini API連携 (modules/gemini_client.py)
 - `google-genai` (v1.0+) ライブラリを使用。
@@ -52,12 +53,15 @@
 
 ### 4.3 システムプロンプト (modules/prompts.py)
 - `SYSTEM_PROMPT` 文字列定数を定義。メンター型AIの役割、トーン＆マナー、参照キーワード、進行フロー、モジュール定義などが記述されている。
+- **対話の制約**: 各モジュールの深掘り質問は1回までとし、テンポよく進行させる。
+- **評価基準**: 課題認識、行動具体性、論理と共感の3軸で評価する。
 
 ### 4.4 ログ管理 (modules/logger.py)
 - Python標準の`logging`モジュールを使用してロギング機能を実装。
 - `logs/assessment.log`にログファイルを保存する。
 - `RotatingFileHandler`により、ログファイルが1MBを超えるとローテーション（世代管理）される（最大5世代）。
 - `StreamHandler`により、コンソール（標準出力）にもログが出力される。Windows環境でのエンコーディング問題（Shift-JIS）への対策済み。
+- Google Sheetsへのログ出力にも対応（`modules/google_sheets_handler.py`）。
 
 # 進行フロー
 1. オープニング: 趣旨説明と挨拶の後、すぐにModule 1を開始する。
@@ -77,6 +81,7 @@
     * 「その判断に至った理由をもう少し詳しく教えていただけますか？」
     * 「もし〇〇という反応が返ってきたらどうしますか？」
     * 上記のように問いかけ、十分な情報が得られてから各Moduleの評価フェーズ（AI Response Logic）へ移行する。
+    * **制約**: 深掘りは1モジュールにつき1回までとする。
 
 # モジュール定義と対話ガイド
 
