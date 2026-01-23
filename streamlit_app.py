@@ -38,13 +38,6 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- サイドバー: ユーザー設定 ---
-with st.sidebar:
-    st.header("設定")
-    if "user_name" not in st.session_state:
-        st.session_state.user_name = ""
-    st.text_input("お名前（ニックネーム可）", key="user_name", disabled=st.session_state.is_started)
-
 # --- セッション状態の初期化 ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -54,6 +47,13 @@ if "gemini_history" not in st.session_state:
 
 if "is_started" not in st.session_state:
     st.session_state.is_started = False
+
+# --- サイドバー: ユーザー設定 ---
+with st.sidebar:
+    st.header("設定")
+    if "user_name" not in st.session_state:
+        st.session_state.user_name = ""
+    st.text_input("お名前（ニックネーム可）", key="user_name", disabled=st.session_state.is_started)
 
 # --- メイン画面 ---
 st.title("🌱 メンター型アセスメント")
