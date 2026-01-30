@@ -48,6 +48,9 @@ if "gemini_history" not in st.session_state:
 if "is_started" not in st.session_state:
     st.session_state.is_started = False
 
+if "is_finished" not in st.session_state:
+    st.session_state.is_finished = False
+
 # --- サイドバー: ユーザー設定 ---
 with st.sidebar:
     st.header("設定")
@@ -130,17 +133,20 @@ if st.session_state.is_started:
             st.error(f"初期化エラーが発生しました。詳細はログを確認してください。")
             st.stop()
 
+    # 履歴から終了判定を更新 (リロード対策)
+    if st.session_state.messages:
+        last_msg = st.session_state.messages[-1]
+        if last_msg["role"] == "assistant" and "以上で、今回のアセスメントを終了します。" in last_msg["content"]:
+            st.session_state.is_finished = True
 
     # チャット履歴の表示
     for msg in st.session_state.messages:
         avatar = "🌱" if msg["role"] == "assistant" else None
         with st.chat_message(msg["role"], avatar=avatar):
-            # 終了タグを非表示にする
-            display_content = msg["content"].replace("[[END_OF_ASSESSMENT]]", "")
-            st.markdown(display_content)
+            st.markdown(msg["content"])
 
     # ユーザー入力エリア
-    if prompt := st.chat_input("回答を入力してください..."):
+    if prompt := st.chat_input("回答を入力してください...", disabled=st.session_state.is_finished):
         with st.chat_message("user"):
             st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -154,7 +160,7 @@ if st.session_state.is_started:
                 if debug_mode:
                     def mock_response_generator():
                         import time
-                        mock_text = f"Debug response at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                        mock_text = f"Debug response at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n以上で、今回のアセスメントを終了します。"
                         time.sleep(1)
                         class MockChunk:
                             def __init__(self, text):
@@ -176,10 +182,9 @@ if st.session_state.is_started:
                     full_text = ""
                     for chunk in response:
                         full_text += chunk.text
-                        response_placeholder.markdown(full_text.replace("[[END_OF_ASSESSMENT]]", "") + "▌")
+                        response_placeholder.markdown(full_text + "▌")
                     
-                    clean_text = full_text.replace("[[END_OF_ASSESSMENT]]", "")
-                    response_placeholder.markdown(clean_text)
+                    response_placeholder.markdown(full_text)
                     
                     # Gemini履歴の更新 (辞書形式)
                     st.session_state.gemini_history.append({"role": "user", "parts": [{"text": prompt}]})
@@ -188,6 +193,12 @@ if st.session_state.is_started:
             st.session_state.messages.append({"role": "assistant", "content": full_text})
             logger.info(prompt, extra={'category': 'User'})
             logger.info(full_text, extra={'category': 'AI'})
+            
+            # 終了判定があればリロードしてUIを更新（入力欄無効化のため）
+            if "以上で、今回のアセスメントを終了します。" in full_text:
+                st.session_state.is_finished = True
+                st.rerun()
+
         except Exception as e:
             logger.error(f"AIの応答生成中にエラーが発生しました (User: {st.session_state.user_name}): {e}", exc_info=True)
             st.error("AIの応答生成中にエラーが発生しました。もう一度お試しください。")
@@ -195,7 +206,7 @@ if st.session_state.is_started:
     # --- アセスメント終了判定とログダウンロード ---
     if st.session_state.messages:
         last_msg = st.session_state.messages[-1]
-        if last_msg["role"] == "assistant" and "[[END_OF_ASSESSMENT]]" in last_msg["content"]:
+        if last_msg["role"] == "assistant" and "以上で、今回のアセスメントを終了します。" in last_msg["content"]:
             st.success("アセスメントが終了しました。お疲れ様でした！")
             st.markdown("以下のボタンから、ここまでの対話ログをダウンロードできます。")
             
