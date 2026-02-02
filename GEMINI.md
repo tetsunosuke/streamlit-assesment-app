@@ -8,13 +8,15 @@
 - **言語**: Python 3.12+
 - **フレームワーク**: Streamlit (Web UI)
 - **AI API**: Google Gemini API (`google-genai` SDK)
-- **環境設定**: ローカル開発用の `.env` ファイル, デプロイ用の **Streamlit Secrets** (`python-dotenv` でローカル読み込み)
+- **デプロイ環境**: Google Cloud Run
+- **環境設定**: ローカル開発用の `.env` ファイル, Google Cloud Secret Manager
 - **ロギング**: Python標準 `logging` モジュール
 
 ## 3. ディレクトリ構成
 ```text
 .
 ├── streamlit_app.py    # メインアプリケーション（Streamlitのエントリーポイント）
+├── Dockerfile          # Cloud Runデプロイ用のコンテナ定義
 ├── modules/
 │   ├── __init__.py
 │   ├── gemini_client.py # Gemini APIとの通信クラス（ChatSession管理）
@@ -23,9 +25,9 @@
 ├── logs/               # アプリケーションログファイル格納ディレクトリ
 │   └── assessment.log   # ログファイル (ローテーション対応)
 ├── .env                # GOOGLE_API_KEYとGEMINI_MODELを格納（git管理外）
+├── .gcloudignore       # gcloud CLIの無視ファイル設定
 ├── requirements.txt    # 依存ライブラリ
 └── GEMINI.md           # 本ファイル
-
 ```
 
 ## 4. 実装要件
@@ -41,7 +43,7 @@
     - UI上に「診断終了」のメッセージを目立つように表示する。
     - 入力欄を無効化（`disabled=True`）するか、非表示にする。
     - 対話ログのダウンロードボタン（CSV）を表示する。
-- **設定読み込み**: ローカル実行時は`.env`ファイル、Streamlit Community Cloudへのデプロイ時は`st.secrets`から`GOOGLE_API_KEY`と`GEMINI_MODEL`を読み込む。
+- **設定読み込み**: ローカル実行時は`.env`ファイル、Google Cloud Runへのデプロイ時は環境変数経由で`GOOGLE_API_KEY`と`GEMINI_MODEL`を読み込む。これらの環境変数はSecret Managerから設定する。
 - **デバッグモード**: `DEBUG_MODE` が `True` の場合、APIを呼び出さずにモック応答を使用する。設定がない場合は `False` (本番モード) となる。
 - **ロギング**: `modules/logger.py`で設定された`logger`を使用し、ユーザーの入力、AIの応答、およびアプリケーション内で発生したエラーをログに記録する。ユーザー名も記録する。
 
@@ -62,6 +64,59 @@
 - `RotatingFileHandler`により、ログファイルが1MBを超えるとローテーション（世代管理）される（最大5世代）。
 - `StreamHandler`により、コンソール（標準出力）にもログが出力される。Windows環境でのエンコーディング問題（Shift-JIS）への対策済み。
 - Google Sheetsへのログ出力にも対応（`modules/google_sheets_handler.py`）。
+
+## 5. Google Cloud Runへのデプロイ
+
+### 5.1 前提条件
+- Google Cloud SDK (`gcloud` CLI) がインストールおよび初期化済みであること。
+- Google Cloud プロジェクトが作成済みであること。
+- 課金が有効になっていること。
+- 以下のAPIが有効になっていること。
+    - Cloud Build API (`serviceusage.googleapis.com`)
+    - Artifact Registry API (`artifactregistry.googleapis.com`)
+    - Cloud Run API (`run.googleapis.com`)
+    - Secret Manager API (`secretmanager.googleapis.com`)
+
+### 5.2 Secret Managerの設定
+APIキーなどの機密情報を安全に管理するため、Secret Managerを使用します。
+
+1. **シークレットの作成**:
+   ```bash
+   # APIキー用のシークレット
+   gcloud secrets create google-api-key --replication-policy="automatic"
+   echo -n "YOUR_GOOGLE_API_KEY" | gcloud secrets versions add google-api-key --data-file=-
+
+   # モデル名用のシークレット
+   gcloud secrets create gemini-model --replication-policy="automatic"
+   echo -n "gemini-1.5-pro-latest" | gcloud secrets versions add gemini-model --data-file=-
+   ```
+   *`YOUR_GOOGLE_API_KEY`* は自身のGemini APIキーに置き換えてください。
+
+### 5.3 デプロイ手順
+`gcloud run deploy` コマンドを使用して、ソースコードから直接デプロイします。
+
+1. **デプロイコマンドの実行**:
+   ```bash
+   # 環境変数の設定
+   PROJECT_ID="YOUR_PROJECT_ID"
+   REGION="asia-northeast1" # 例: 東京リージョン
+   SERVICE_NAME="streamlit-assessment-app"
+
+   # デプロイ
+   gcloud run deploy ${SERVICE_NAME} \
+     --project=${PROJECT_ID} \
+     --region=${REGION} \
+     --source=. \
+     --platform=managed \
+     --port=8501 \
+     --allow-unauthenticated \
+     --set-secrets="GOOGLE_API_KEY=google-api-key:latest" \
+     --set-secrets="GEMINI_MODEL=gemini-model:latest"
+   ```
+   *`YOUR_PROJECT_ID`* は自身のGoogle CloudプロジェクトIDに置き換えてください。
+
+2. **確認**:
+   デプロイが完了すると、コンソールにサービスのURLが出力されます。ブラウザでアクセスしてアプリケーションが動作することを確認します。
 
 # 進行フロー
 1. オープニング: 趣旨説明と挨拶の後、すぐにModule 1を開始する。

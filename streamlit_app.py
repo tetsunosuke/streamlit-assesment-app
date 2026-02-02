@@ -1,5 +1,7 @@
 import streamlit as st
 import logging
+import sys
+import json
 import os
 import datetime
 from dotenv import load_dotenv
@@ -8,17 +10,48 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from modules.gemini_client import GeminiClient
-from modules.logger import logger
-from modules.google_sheets_handler import add_google_sheets_handler
 
-# --- Google Sheets Loggerのセットアップ ---
-add_google_sheets_handler(
-    logger_instance=logger,
-    sheet_id='13Q4ovS5HKXh9qGnHMrePC9o8Gqute1HuBOvmJqW3cKo',
-    worksheet_name='log',
-    credentials_key='google_sheets',
-    min_level=logging.INFO
-)
+# --- Cloud Logging用設定 (JSON形式で出力) ---
+# これにより、Cloud Runのログエクスプローラで検索・分析が可能になります
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        # ログレコードの基本情報
+        log_entry = {
+            "severity": record.levelname,
+            "message": record.getMessage(),
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "component": "assessment-app",
+        }
+        
+        # extra引数で渡されたデータ ('category'など) を統合
+        if hasattr(record, 'category'):
+            log_entry['category'] = record.category
+        
+        # Streamlitのセッションからユーザー情報を取得して付与
+        # (コンテキスト外のエラー回避のためtry-except)
+        try:
+            if "user_name" in st.session_state and st.session_state.user_name:
+                log_entry['user_id'] = st.session_state.user_name
+            else:
+                log_entry['user_id'] = "anonymous"
+        except:
+            log_entry['user_id'] = "system_init"
+
+        return json.dumps(log_entry, ensure_ascii=False)
+
+# ロガーの初期化
+logger = logging.getLogger("assessment_app")
+logger.setLevel(logging.INFO)
+
+# 既存のハンドラをクリアして重複防止
+if logger.hasHandlers():
+    logger.handlers.clear()
+
+# 標準出力(stdout)へのハンドラを作成
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(JsonFormatter())
+logger.addHandler(handler)
+
 
 # デバッグモードの読み込み
 # st.secrets を優先し、なければ環境変数を参照、デフォルトは 'False'
@@ -191,6 +224,9 @@ if st.session_state.is_started:
                     st.session_state.gemini_history.append({"role": "model", "parts": [{"text": full_text}]})
 
             st.session_state.messages.append({"role": "assistant", "content": full_text})
+            
+            # --- 構造化ログ出力 ---
+            # ここでのログはCloud LoggingにJSONとして送られ、user_idなども自動付与されます
             logger.info(prompt, extra={'category': 'User'})
             logger.info(full_text, extra={'category': 'AI'})
             
