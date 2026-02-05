@@ -39,7 +39,7 @@
     - `gemini_history`: Gemini APIとの通信用履歴（ステートレスな再構築のため）
     - `is_started`: アセスメントが開始されたかどうかのフラグ
     - `is_finished`: アセスメントが終了したかどうかのフラグ
-- **終了判定**: AIからの応答に `[[END_OF_ASSESSMENT]]` という文字列が含まれていた場合、アセスメント終了とみなす。
+- **終了**: 
     - UI上に「診断終了」のメッセージを目立つように表示する。
     - 入力欄を無効化（`disabled=True`）するか、非表示にする。
     - 対話ログのダウンロードボタン（CSV）を表示する。
@@ -83,14 +83,14 @@ APIキーなどの機密情報を安全に管理するため、Secret Managerを
 1. **シークレットの作成**:
    ```bash
    # APIキー用のシークレット
-   gcloud secrets create google-api-key --replication-policy="automatic"
-   echo -n "YOUR_GOOGLE_API_KEY" | gcloud secrets versions add google-api-key --data-file=-
+   gcloud secrets create gemini-api-key --replication-policy="automatic"
+   echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets versions add gemini-api-key --data-file=-
 
    # モデル名用のシークレット
    gcloud secrets create gemini-model --replication-policy="automatic"
    echo -n "gemini-1.5-pro-latest" | gcloud secrets versions add gemini-model --data-file=-
    ```
-   *`YOUR_GOOGLE_API_KEY`* は自身のGemini APIキーに置き換えてください。
+   *`YOUR_GEMINI_API_KEY`* は自身のGemini APIキーに置き換えてください。
 
 ### 5.3 デプロイ手順
 `gcloud run deploy` コマンドを使用して、ソースコードから直接デプロイします。
@@ -110,9 +110,8 @@ APIキーなどの機密情報を安全に管理するため、Secret Managerを
      --platform=managed \
      --port=8501 \
      --allow-unauthenticated \
-     --set-secrets="GOOGLE_API_KEY=google-api-key:latest" \
-     --set-secrets="GEMINI_MODEL=gemini-model:latest"
-   ```
+     --set-secrets="GEMINI_API_KEY=gemini-api-key:latest" \
+     --set-secrets="GEMINI_MODEL=gemini-model:latest"   ```
    *`YOUR_PROJECT_ID`* は自身のGoogle CloudプロジェクトIDに置き換えてください。
 
 2. **確認**:
@@ -136,7 +135,7 @@ APIキーなどの機密情報を安全に管理するため、Secret Managerを
     * 「その判断に至った理由をもう少し詳しく教えていただけますか？」
     * 「もし〇〇という反応が返ってきたらどうしますか？」
     * 上記のように問いかけ、十分な情報が得られてから各Moduleの評価フェーズ（AI Response Logic）へ移行する。
-    * **制約**: 深掘りは1モジュールにつき1回までとする。
+    * **制約**: 深掘りは1モジュールにつき3回までとする。
 
 # モジュール定義と対話ガイド
 

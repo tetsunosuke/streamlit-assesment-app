@@ -4,6 +4,7 @@ import sys
 import json
 import os
 import datetime
+import re # Added for score parsing
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -84,6 +85,9 @@ if "is_started" not in st.session_state:
 if "is_finished" not in st.session_state:
     st.session_state.is_finished = False
 
+if "module_scores" not in st.session_state:
+    st.session_state.module_scores = []
+
 # --- サイドバー: ユーザー設定 ---
 with st.sidebar:
     st.header("設定")
@@ -96,7 +100,7 @@ st.title("🌱 メンター型アセスメント")
 st.markdown("あなたの強みと補完すべき能力を診断します。対話するように回答してください。")
 
 # --- Secrets/Configの読み込み ---
-api_key = st.secrets.get("GOOGLE_API_KEY") or st.secrets.get("GEMINI_API_KEY")
+api_key = st.secrets.get("GEMINI_API_KEY")
 model_name = st.secrets.get("GEMINI_MODEL")
 
 if api_key and model_name:
@@ -106,7 +110,7 @@ if api_key and model_name:
         logger.debug("Secrets loaded from local .streamlit/secrets.toml.", extra={'category': 'System'})
 else:
     logger.warning("Secrets not fully loaded from st.secrets. Attempting fallback to environment variables.")
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     model_name = os.getenv("GEMINI_MODEL")
 
     if api_key and model_name:
@@ -169,7 +173,7 @@ if st.session_state.is_started:
     # 履歴から終了判定を更新 (リロード対策)
     if st.session_state.messages:
         last_msg = st.session_state.messages[-1]
-        if last_msg["role"] == "assistant" and "以上で、今回のアセスメントを終了します。" in last_msg["content"]:
+        if last_msg["role"] == "assistant" and "[[END_OF_ASSESSMENT]]" in last_msg["content"]:
             st.session_state.is_finished = True
 
     # チャット履歴の表示
@@ -193,7 +197,7 @@ if st.session_state.is_started:
                 if debug_mode:
                     def mock_response_generator():
                         import time
-                        mock_text = f"Debug response at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n以上で、今回のアセスメントを終了します。"
+                        mock_text = f"Debug response at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n[[END_OF_ASSESSMENT]]"
                         time.sleep(1)
                         class MockChunk:
                             def __init__(self, text):
@@ -219,6 +223,15 @@ if st.session_state.is_started:
                     
                     response_placeholder.markdown(full_text)
                     
+                    # Score Parsing and Storage
+                    score_pattern = re.compile(r"\[\[SCORE:(\d+)\]\]")
+                    match = score_pattern.search(full_text)
+                    if match:
+                        score = int(match.group(1))
+                        st.session_state.module_scores.append(score)
+                        full_text = score_pattern.sub("", full_text).strip() # Remove score tag from text
+                        logger.info(f"Score extracted: {score}", extra={'category': 'Scoring'})
+
                     # Gemini履歴の更新 (辞書形式)
                     st.session_state.gemini_history.append({"role": "user", "parts": [{"text": prompt}]})
                     st.session_state.gemini_history.append({"role": "model", "parts": [{"text": full_text}]})
@@ -231,7 +244,7 @@ if st.session_state.is_started:
             logger.info(full_text, extra={'category': 'AI'})
             
             # 終了判定があればリロードしてUIを更新（入力欄無効化のため）
-            if "以上で、今回のアセスメントを終了します。" in full_text:
+            if "[[END_OF_ASSESSMENT]]" in full_text:
                 st.session_state.is_finished = True
                 st.rerun()
 
@@ -242,7 +255,7 @@ if st.session_state.is_started:
     # --- アセスメント終了判定とログダウンロード ---
     if st.session_state.messages:
         last_msg = st.session_state.messages[-1]
-        if last_msg["role"] == "assistant" and "以上で、今回のアセスメントを終了します。" in last_msg["content"]:
+        if last_msg["role"] == "assistant" and "[[END_OF_ASSESSMENT]]" in last_msg["content"]:
             st.success("アセスメントが終了しました。お疲れ様でした！")
             st.markdown("以下のボタンから、ここまでの対話ログをダウンロードできます。")
             
@@ -257,11 +270,24 @@ if st.session_state.is_started:
             for msg in st.session_state.messages:
                 writer.writerow([msg["role"], msg["content"]])
             
-            csv_data = csv_buffer.getvalue().encode("utf-8")
+            csv_data = csv_buffer.getvalue().encode("shift_jis", "ignore")
             
             st.download_button(
                 label="対話ログをダウンロード (CSV)",
                 data=csv_data,
                 file_name=f"assessment_log_{st.session_state.user_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
+                mime="text/csv; charset=shift_jis"
             )
+
+            if st.button("採点結果を見る"):
+                st.subheader("アセスメント採点結果")
+                if st.session_state.module_scores:
+                    total_score = 0
+                    for i, score in enumerate(st.session_state.module_scores):
+                        st.markdown(f"**Module {i+1}**: {score}点/10点")
+                        total_score += score
+                    
+                    average_score = total_score / len(st.session_state.module_scores)
+                    st.markdown(f"**平均スコア**: {average_score:.2f}点/10点")
+                else:
+                    st.info("まだ採点結果はありません。")

@@ -83,11 +83,9 @@ gcloud run deploy ${SERVICE_NAME} \
   --region=${REGION} \
   --source=. \
   --platform=managed \
-  --port=8501 \
-  --allow-unauthenticated \
-  --set-secrets="GOOGLE_API_KEY=google-api-key:latest" \
-  --set-secrets="GEMINI_MODEL=gemini-model:latest"
+  --allow-unauthenticated
 ```
+
 デプロイ完了後、表示されるURLにアクセスします。
 
 ## 📝 詳細
