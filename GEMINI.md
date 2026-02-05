@@ -100,7 +100,7 @@ APIキーなどの機密情報を安全に管理するため、Secret Managerを
    # 環境変数の設定
    PROJECT_ID="YOUR_PROJECT_ID"
    REGION="asia-northeast1" # 例: 東京リージョン
-   SERVICE_NAME="streamlit-assessment-app"
+   SERVICE_NAME="assessment-app" # 任意の名前に変更可能
 
    # デプロイ
    gcloud run deploy ${SERVICE_NAME} \
@@ -109,8 +109,18 @@ APIキーなどの機密情報を安全に管理するため、Secret Managerを
      --source=. \
      --platform=managed \
      --timeout=300 \
-     --allow-unauthenticated 
+     --allow-unauthenticated \
+     --port=8080 \
+     --cpu-boost \
+     --min-instances=0 \
+     --max-instances=10
+   ```
    *`YOUR_PROJECT_ID`* は自身のGoogle CloudプロジェクトIDに置き換えてください。
+   * **各フラグの説明**:
+     * `--port=8080`: コンテナがリッスンするポートを指定します (Dockerfileと一致させる必要があります)。
+     * `--cpu-boost`: 短期間のCPUブーストを有効にし、コールドスタート時のパフォーマンスを向上させます。
+     * `--min-instances=0`: トラフィックがない場合にインスタンス数を0にし、コストを削減します。
+     * `--max-instances=10`: トラフィックの増加に応じてスケールアウトするインスタンスの最大数を設定します。
 
 2. **確認**:
    デプロイが完了すると、コンソールにサービスのURLが出力されます。ブラウザでアクセスしてアプリケーションが動作することを確認します。

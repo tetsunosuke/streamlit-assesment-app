@@ -17,4 +17,4 @@ EXPOSE 8080
 
 # 6. アプリの起動コマンド
 # server.address=0.0.0.0 は外部アクセス許可、server.port=8080 はCloud Runの規約
-CMD ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8080", "--server.address=0.0.0.0"]

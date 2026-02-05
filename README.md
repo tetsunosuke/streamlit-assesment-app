@@ -60,8 +60,8 @@ APIキー等の機密情報を設定します。
 
 ```bash
 # APIキー用のシークレット
-gcloud secrets create google-api-key --replication-policy="automatic"
-echo -n "YOUR_GOOGLE_API_KEY" | gcloud secrets versions add google-api-key --data-file=-
+gcloud secrets create gemini-api-key --replication-policy="automatic"
+echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets versions add gemini-api-key --data-file=-
 
 # モデル名用のシークレット
 gcloud secrets create gemini-model --replication-policy="automatic"
@@ -75,7 +75,7 @@ echo -n "gemini-1.5-pro-latest" | gcloud secrets versions add gemini-model --dat
 # 環境変数の設定
 PROJECT_ID="YOUR_PROJECT_ID"
 REGION="asia-northeast1" # 東京リージョンの例
-SERVICE_NAME="streamlit-assessment-app"
+SERVICE_NAME="assessment-app" # 任意の名前に変更可能
 
 # デプロイ実行
 gcloud run deploy ${SERVICE_NAME} \
@@ -84,7 +84,11 @@ gcloud run deploy ${SERVICE_NAME} \
   --source=. \
   --platform=managed \
   --timeout=300 \
-  --allow-unauthenticated
+  --allow-unauthenticated \
+  --port=8080 \
+  --cpu-boost \
+  --min-instances=0 \
+  --max-instances=10
 ```
 
 デプロイ完了後、表示されるURLにアクセスします。
