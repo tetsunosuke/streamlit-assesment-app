@@ -21,11 +21,10 @@ echo "--- Starting Google Cloud setup ---"
 
 # 1. Enable APIs
 echo "1. Enabling required Google Cloud APIs..."
-gcloud services enable iam.googleapis.com 
-                         iam.bndd.cloud.goog 
-                         sts.googleapis.com 
-                         iamcredentials.googleapis.com 
-                         cloudbuild.googleapis.com 
+gcloud services enable iam.googleapis.com \
+                         sts.googleapis.com \
+                         iamcredentials.googleapis.com \
+                         cloudbuild.googleapis.com \
                          --project="${PROJECT_ID}"
 echo "APIs enabled."
 
