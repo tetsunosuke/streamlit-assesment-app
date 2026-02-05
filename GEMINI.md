@@ -108,10 +108,9 @@ APIキーなどの機密情報を安全に管理するため、Secret Managerを
      --region=${REGION} \
      --source=. \
      --platform=managed \
-     --port=8501 \
      --allow-unauthenticated \
      --set-secrets="GEMINI_API_KEY=gemini-api-key:latest" \
-     --set-secrets="GEMINI_MODEL=gemini-model:latest"   ```
+     --set-secrets="GEMINI_MODEL=gemini-model:latest"```
    *`YOUR_PROJECT_ID`* は自身のGoogle CloudプロジェクトIDに置き換えてください。
 
 2. **確認**:
