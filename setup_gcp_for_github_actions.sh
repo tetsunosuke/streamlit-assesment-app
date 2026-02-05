@@ -30,57 +30,57 @@ echo "APIs enabled."
 
 # 2. Create a Workload Identity Pool
 echo "2. Creating Workload Identity Pool: ${POOL_ID}..."
-gcloud iam workload-identity-pools create "${POOL_ID}" 
-  --project="${PROJECT_ID}" 
-  --location="global" 
+gcloud iam workload-identity-pools create "${POOL_ID}" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
   --display-name="GitHub Actions pool for ${GITHUB_ORG_REPO}" || true # Allow if already exists
 echo "Workload Identity Pool created/exists."
 
 # 3. Create a Workload Identity Provider for GitHub
 echo "3. Creating Workload Identity Provider: ${PROVIDER_ID}..."
-gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_ID}" 
-  --project="${PROJECT_ID}" 
-  --location="global" 
-  --workload-identity-pool="${POOL_ID}" 
-  --display-name="GitHub Actions provider for ${GITHUB_ORG_REPO}" 
-  --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" 
+gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_ID}" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --workload-identity-pool="${POOL_ID}" \
+  --display-name="GitHub Actions provider for ${GITHUB_ORG_REPO}" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
   --issuer-uri="${GITHUB_ACTIONS_ISSUER}" || true # Allow if already exists
 echo "Workload Identity Provider created/exists."
 
 # 4. Get the full resource name of the provider
 echo "4. Retrieving Workload Identity Provider resource name..."
-WORKLOAD_IDENTITY_PROVIDER=$(gcloud iam workload-identity-pools providers describe "${PROVIDER_ID}" 
-  --project="${PROJECT_ID}" 
-  --location="global" 
-  --workload-identity-pool="${POOL_ID}" 
+WORKLOAD_IDENTITY_PROVIDER=$(gcloud iam workload-identity-pools providers describe "${PROVIDER_ID}" \
+  --project="${PROJECT_ID}" \
+  --location="global" \
+  --workload-identity-pool="${POOL_ID}" \
   --format="value(name)")
 echo "Workload Identity Provider Resource Name: ${WORKLOAD_IDENTITY_PROVIDER}"
 
 # 5. Create a Service Account for Cloud Run Deployment
 echo "5. Creating Service Account: ${SERVICE_ACCOUNT_ID}..."
-gcloud iam service-accounts create "${SERVICE_ACCOUNT_ID}" 
-  --project="${PROJECT_ID}" 
+gcloud iam service-accounts create "${SERVICE_ACCOUNT_ID}" \
+  --project="${PROJECT_ID}" \
   --display-name="${SERVICE_ACCOUNT_DISPLAY_NAME}" || true # Allow if already exists
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_ID}@${PROJECT_ID}.iam.gserviceaccount.com"
 echo "Service Account Email: ${SERVICE_ACCOUNT_EMAIL}"
 
 # 6. Grant Roles to the Service Account
 echo "6. Granting necessary IAM roles to ${SERVICE_ACCOUNT_EMAIL}..."
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" 
-  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" 
-  --role="roles/run.admin" 
-  --role="roles/iam.serviceAccountUser" 
-  --role="roles/secretmanager.secretAccessor" 
-  --role="roles/storage.admin" 
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/run.admin" \
+  --role="roles/iam.serviceAccountUser" \
+  --role="roles/secretmanager.secretAccessor" \
+  --role="roles/storage.admin" \
   --project="${PROJECT_ID}"
 echo "IAM roles granted."
 
 # 7. Grant Workload Identity User Role to GitHub Provider
 echo "7. Granting Workload Identity User role to GitHub provider for ${GITHUB_ORG_REPO}..."
-gcloud iam service-accounts add-iam-policy-binding "${SERVICE_ACCOUNT_EMAIL}" 
-  --project="${PROJECT_ID}" 
-  --role="roles/iam.workloadIdentityUser" 
-  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/attribute.repository/${GITHUB_ORG_REPO}" 
+gcloud iam service-accounts add-iam-policy-binding "${SERVICE_ACCOUNT_EMAIL}" \
+  --project="${PROJECT_ID}" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/attribute.repository/${GITHUB_ORG_REPO}" \
   --project="${PROJECT_ID}"
 echo "Workload Identity User role granted."
 
