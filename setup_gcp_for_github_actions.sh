@@ -33,7 +33,7 @@ echo "2. Creating Workload Identity Pool: ${POOL_ID}..."
 gcloud iam workload-identity-pools create "${POOL_ID}" \
   --project="${PROJECT_ID}" \
   --location="global" \
-  --display-name="GitHub Actions pool for ${GITHUB_ORG_REPO}" || true # Allow if already exists
+  --display-name="GitHub Actions Pool" || true # Allow if already exists
 echo "Workload Identity Pool created/exists."
 
 # 3. Create a Workload Identity Provider for GitHub
@@ -42,7 +42,7 @@ gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_ID}" \
   --project="${PROJECT_ID}" \
   --location="global" \
   --workload-identity-pool="${POOL_ID}" \
-  --display-name="GitHub Actions provider for ${GITHUB_ORG_REPO}" \
+  --display-name="GitHub Actions Provider" \
   --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
   --issuer-uri="${GITHUB_ACTIONS_ISSUER}" || true # Allow if already exists
 echo "Workload Identity Provider created/exists."
