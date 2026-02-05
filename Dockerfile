@@ -13,8 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 5. Cloud Run はポート8080で待ち受ける必要があるため、その設定
-EXPOSE 8080
+EXPOSE 8501
 
 # 6. アプリの起動コマンド
 # server.address=0.0.0.0 は外部アクセス許可、server.port=8080 はCloud Runの規約
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8080", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
