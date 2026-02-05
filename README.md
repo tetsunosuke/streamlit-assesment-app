@@ -83,6 +83,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --region=${REGION} \
   --source=. \
   --platform=managed \
+  --timeout=300 \
   --allow-unauthenticated
 ```
 
