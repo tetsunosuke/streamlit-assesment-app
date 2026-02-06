@@ -20,7 +20,7 @@ class JsonFormatter(logging.Formatter):
         log_entry = {
             "severity": record.levelname,
             "message": record.getMessage(),
-            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "component": "assessment-app",
         }
         
@@ -208,8 +208,15 @@ if st.session_state.is_started:
                 if debug_mode:
                     def mock_response_generator():
                         import time
-                        mock_text = f"Debug response at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n[[SCORE:8]]\n[[RATIONALE:Mock reasoning for score 8.]]"
-                        time.sleep(1)
+                        # Simple state tracking based on message count
+                        user_msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
+                        
+                        if user_msg_count < 3:
+                            mock_text = f"【Debug Mode】 Mock Response {user_msg_count}\n\nThis is a dummy response for testing. (Message {user_msg_count}/3)\n\n[[SCORE:7]]\n[[RATIONALE:Dummy rationale for step {user_msg_count}.]]"
+                        else:
+                            mock_text = f"【Debug Mode】 Assessment Complete.\n\nHere is the comprehensive feedback...\n\n1. Type: Debugger\n2. Analysis: ...\n\n[[SCORE:9]]\n[[RATIONALE:Final dummy rationale.]]\n\n[[END_OF_ASSESSMENT]]"
+                        
+                        time.sleep(0.5)
                         class MockChunk:
                             def __init__(self, text):
                                 self.text = text
@@ -217,7 +224,8 @@ if st.session_state.is_started:
                     response = mock_response_generator()
                     full_text = ""
                     for chunk in response:
-                        full_text += chunk.text
+                        if chunk.text:
+                            full_text += chunk.text
                         response_placeholder.markdown(full_text + "▌")
                     # Debug mode also needs to handle the final clean up for display
                     # response_placeholder.markdown(full_text) -> Will be overwritten by cleaned text below
@@ -230,7 +238,8 @@ if st.session_state.is_started:
                 
                     full_text = ""
                     for chunk in response:
-                        full_text += chunk.text
+                        if chunk.text:
+                            full_text += chunk.text
                         response_placeholder.markdown(full_text + "▌")
                     
                 # --- Post-Processing for Score & Rationale Tags ---
