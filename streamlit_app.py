@@ -298,14 +298,36 @@ if st.session_state.is_started:
         
         csv_buffer = io.StringIO()
         writer = csv.writer(csv_buffer)
-        # Add Timestamp to Header
-        writer.writerow(["Timestamp", "Role", "Content"])
+        # Add Timestamp to Header, separate Score and Rationale
+        writer.writerow(["Timestamp", "Role", "Content", "Score", "Hidden Rationale"])
         
+        # Regex for extraction (re-defined here to ensure scope access)
+        csv_score_pattern = re.compile(r"\[\[SCORE:(\d+)\]\]")
+        csv_rationale_tag_pattern = re.compile(r"\[\[RATIONALE:(.*?)\]\]", re.DOTALL) # Capture content inside
+        csv_rationale_remove_pattern = re.compile(r"\[\[RATIONALE:.*?\]\]", re.DOTALL) # Match full tag for removal
+
         for msg in st.session_state.messages:
-            # Use raw_content if available (to show hidden rationales in log), else content
-            content_to_log = msg.get("raw_content", msg["content"])
             timestamp = msg.get("timestamp", "")
-            writer.writerow([timestamp, msg["role"], content_to_log])
+            role = msg["role"]
+            raw_text = msg.get("raw_content", msg["content"])
+            
+            # Extract Score
+            score = ""
+            s_match = csv_score_pattern.search(raw_text)
+            if s_match:
+                score = s_match.group(1)
+            
+            # Extract Rationale
+            rationale = ""
+            r_match = csv_rationale_tag_pattern.search(raw_text)
+            if r_match:
+                rationale = r_match.group(1).strip()
+            
+            # Clean Content (Remove Score and Rationale tags)
+            clean_text = csv_score_pattern.sub("", raw_text)
+            clean_text = csv_rationale_remove_pattern.sub("", clean_text).strip()
+            
+            writer.writerow([timestamp, role, clean_text, score, rationale])
         
         csv_data = csv_buffer.getvalue().encode("shift_jis", "ignore")
         
