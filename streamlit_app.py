@@ -161,8 +161,12 @@ if st.session_state.is_started:
             else:
                 initial_text = f"デバッグモードで起動しました。アセスメントを開始します。(起動時刻: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
             
-            # UI用履歴に追加
-            st.session_state.messages.append({"role": "assistant", "content": initial_text})
+            # UI用履歴に追加 (Timestamp付き)
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": initial_text,
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
             logger.info(initial_text, extra={'category': 'AI'})
             
         except Exception as e:
@@ -173,7 +177,7 @@ if st.session_state.is_started:
     # 履歴から終了判定を更新 (リロード対策)
     if st.session_state.messages:
         last_msg = st.session_state.messages[-1]
-        if last_msg["role"] == "assistant" and "[[END_OF_ASSESSMENT]]" in last_msg["content"]:
+        if last_msg["role"] == "assistant" and "[[END_OF_ASSESSMENT]]" in last_msg.get("content", ""):
             st.session_state.is_finished = True
 
     # チャット履歴の表示
@@ -184,9 +188,16 @@ if st.session_state.is_started:
 
     # ユーザー入力エリア
     if prompt := st.chat_input("回答を入力してください...", disabled=st.session_state.is_finished):
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with st.chat_message("user"):
             st.markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # ユーザーメッセージ保存
+        st.session_state.messages.append({
+            "role": "user", 
+            "content": prompt,
+            "timestamp": current_time
+        })
 
         # AIの応答を生成
         try:
@@ -197,7 +208,7 @@ if st.session_state.is_started:
                 if debug_mode:
                     def mock_response_generator():
                         import time
-                        mock_text = f"Debug response at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n[[END_OF_ASSESSMENT]]"
+                        mock_text = f"Debug response at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n[[SCORE:8]]\n[[RATIONALE:Mock reasoning for score 8.]]"
                         time.sleep(1)
                         class MockChunk:
                             def __init__(self, text):
@@ -208,7 +219,8 @@ if st.session_state.is_started:
                     for chunk in response:
                         full_text += chunk.text
                         response_placeholder.markdown(full_text + "▌")
-                    response_placeholder.markdown(full_text)
+                    # Debug mode also needs to handle the final clean up for display
+                    # response_placeholder.markdown(full_text) -> Will be overwritten by cleaned text below
                 else:
                     # ステートレス: クライアント作成と履歴復元
                     client = GeminiClient(api_key=api_key, model_name=model_name)
@@ -221,29 +233,43 @@ if st.session_state.is_started:
                         full_text += chunk.text
                         response_placeholder.markdown(full_text + "▌")
                     
-                    response_placeholder.markdown(full_text)
-                    
-                    # Score Parsing and Storage
-                    score_pattern = re.compile(r"\[\[SCORE:(\d+)\]\]")
-                    match = score_pattern.search(full_text)
-                    if match:
-                        score = int(match.group(1))
-                        st.session_state.module_scores.append(score)
-                        full_text = score_pattern.sub("", full_text).strip() # Remove score tag from text
-                        logger.info(f"Score extracted: {score}", extra={'category': 'Scoring'})
+                # --- Post-Processing for Score & Rationale Tags ---
+                
+                # Regex patterns
+                score_pattern = re.compile(r"\[\[SCORE:(\d+)\]\]")
+                rationale_pattern = re.compile(r"\[\[RATIONALE:.*?\]\]", re.DOTALL)
+                
+                # 1. Extract and Remove Score
+                match = score_pattern.search(full_text)
+                if match:
+                    score = int(match.group(1))
+                    st.session_state.module_scores.append(score)
+                    logger.info(f"Score extracted: {score}", extra={'category': 'Scoring'})
+                
+                # 2. Create "Cleaned" text for Display (Remove Score AND Rationale tags)
+                cleaned_text = score_pattern.sub("", full_text)
+                cleaned_text = rationale_pattern.sub("", cleaned_text).strip()
+                
+                # Update Placeholder with cleaned text
+                response_placeholder.markdown(cleaned_text)
 
-                    # Gemini履歴の更新 (辞書形式)
-                    st.session_state.gemini_history.append({"role": "user", "parts": [{"text": prompt}]})
-                    st.session_state.gemini_history.append({"role": "model", "parts": [{"text": full_text}]})
+                # Gemini履歴の更新 (辞書形式) - AI needs to remember what it generated (Raw text)
+                st.session_state.gemini_history.append({"role": "user", "parts": [{"text": prompt}]})
+                st.session_state.gemini_history.append({"role": "model", "parts": [{"text": full_text}]})
 
-            st.session_state.messages.append({"role": "assistant", "content": full_text})
+            # Save to Session State (Keep Raw Content for Log)
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": cleaned_text, 
+                "raw_content": full_text, # Contains [[SCORE]] and [[RATIONALE]]
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
             
             # --- 構造化ログ出力 ---
-            # ここでのログはCloud LoggingにJSONとして送られ、user_idなども自動付与されます
             logger.info(prompt, extra={'category': 'User'})
-            logger.info(full_text, extra={'category': 'AI'})
+            logger.info(full_text, extra={'category': 'AI'}) # Log raw text
             
-            # 終了判定があればリロードしてUIを更新（入力欄無効化のため）
+            # 終了判定
             if "[[END_OF_ASSESSMENT]]" in full_text:
                 st.session_state.is_finished = True
                 st.rerun()
@@ -253,41 +279,43 @@ if st.session_state.is_started:
             st.error("AIの応答生成中にエラーが発生しました。もう一度お試しください。")
 
     # --- アセスメント終了判定とログダウンロード ---
-    if st.session_state.messages:
-        last_msg = st.session_state.messages[-1]
-        if last_msg["role"] == "assistant" and "[[END_OF_ASSESSMENT]]" in last_msg["content"]:
-            st.success("アセスメントが終了しました。お疲れ様でした！")
-            st.markdown("以下のボタンから、ここまでの対話ログをダウンロードできます。")
-            
-            # CSV生成
-            import csv
-            import io
-            
-            csv_buffer = io.StringIO()
-            writer = csv.writer(csv_buffer)
-            writer.writerow(["Role", "Content"]) # Header
-            
-            for msg in st.session_state.messages:
-                writer.writerow([msg["role"], msg["content"]])
-            
-            csv_data = csv_buffer.getvalue().encode("shift_jis", "ignore")
-            
-            st.download_button(
-                label="対話ログをダウンロード (CSV)",
-                data=csv_data,
-                file_name=f"assessment_log_{st.session_state.user_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv; charset=shift_jis"
-            )
+    if st.session_state.is_finished:
+        st.success("アセスメントが終了しました。お疲れ様でした！")
+        st.markdown("以下のボタンから、ここまでの対話ログをダウンロードできます。")
+        
+        # CSV生成
+        import csv
+        import io
+        
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        # Add Timestamp to Header
+        writer.writerow(["Timestamp", "Role", "Content"])
+        
+        for msg in st.session_state.messages:
+            # Use raw_content if available (to show hidden rationales in log), else content
+            content_to_log = msg.get("raw_content", msg["content"])
+            timestamp = msg.get("timestamp", "")
+            writer.writerow([timestamp, msg["role"], content_to_log])
+        
+        csv_data = csv_buffer.getvalue().encode("shift_jis", "ignore")
+        
+        st.download_button(
+            label="対話ログをダウンロード (CSV)",
+            data=csv_data,
+            file_name=f"assessment_log_{st.session_state.user_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv; charset=shift_jis"
+        )
 
-            if st.button("採点結果を見る"):
-                st.subheader("アセスメント採点結果")
-                if st.session_state.module_scores:
-                    total_score = 0
-                    for i, score in enumerate(st.session_state.module_scores):
-                        st.markdown(f"**Module {i+1}**: {score}点/10点")
-                        total_score += score
-                    
-                    average_score = total_score / len(st.session_state.module_scores)
-                    st.markdown(f"**平均スコア**: {average_score:.2f}点/10点")
-                else:
-                    st.info("まだ採点結果はありません。")
+        if st.button("採点結果を見る"):
+            st.subheader("アセスメント採点結果")
+            if st.session_state.module_scores:
+                total_score = 0
+                for i, score in enumerate(st.session_state.module_scores):
+                    st.markdown(f"**Module {i+1}**: {score}点/10点")
+                    total_score += score
+                
+                average_score = total_score / len(st.session_state.module_scores)
+                st.markdown(f"**平均スコア**: {average_score:.2f}点/10点")
+            else:
+                st.info("まだ採点結果はありません。")
